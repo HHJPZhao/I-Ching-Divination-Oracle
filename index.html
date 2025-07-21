@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I Ching Divination - Bilingual</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .chinese-text {
+            font-family: 'Noto Serif SC', serif;
+        }
+        /* Custom styles for the hexagram symbols in the result card */
+        .hexagram-symbol {
+            font-size: 6rem;
+            line-height: 1;
+            color: #93c5fd; /* A calming blue */
+            text-shadow: 0 0 15px rgba(147, 197, 253, 0.5);
+        }
+        
+        /* Styles for the lines being cast */
+        .cast-line {
+            font-family: monospace;
+            font-size: 2rem;
+            margin: 0.25rem 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #e2e8f0;
+        }
+        .line-symbol {
+            width: 6ch; /* Use character units for consistent width */
+            text-align: center;
+            display: inline-block;
+        }
+        .line-indicator {
+            width: 2ch; /* Give indicator a consistent space */
+            text-align: left;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .line-indicator.changing-yang { color: #fca5a5; } /* Red for changing yang */
+        .line-indicator.changing-yin { color: #818cf8; } /* Indigo for changing yin */
+        
+        /* Animation for a new line appearing */
+        @keyframes line-appear {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .line-animation {
+            animation: line-appear 0.6s ease-out forwards;
+        }
+
+        /* Coin animation styles */
+        #coin-container {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .coin {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1.25rem;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .coin.heads {
+            background-color: #facc15; /* Gold */
+            border: 3px solid #b45309;
+            color: #b45309;
+        }
+        .coin.tails {
+            background-color: #cbd5e1; /* Silver */
+            border: 3px solid #64748b;
+            color: #475569;
+        }
+        @keyframes toss {
+            0% { transform: translateY(0) rotateY(0); }
+            50% { transform: translateY(-50px) rotateY(720deg); }
+            100% { transform: translateY(0) rotateY(1440deg); }
+        }
+        .tossing {
+            animation: toss 1s ease-out;
+        }
+
+
+        /* Transitions for UI elements */
+        #results-container, #casting-area {
+            transition: opacity 0.8s ease-in-out, transform 0.8s ease-in-out;
+        }
+        .hidden-state {
+            opacity: 0;
+            transform: translateY(20px);
+            max-height: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .visible-state {
+            opacity: 1;
+            transform: translateY(0);
+            max-height: 2500px; /* Increased for more content */
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-300 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-3xl text-center">
+        <header class="mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-2">I Ching Oracle</h1>
+            <p class="text-lg text-slate-400">Consult the ancient Book of Changes for wisdom and guidance.</p>
+        </header>
+
+        <main>
+            <!-- Casting Area -->
+            <div id="casting-area" class="bg-slate-800/50 backdrop-blur-sm p-6 rounded-2xl shadow-xl border border-slate-700 mb-8 transition-all duration-500">
+                <div id="coin-container" class="flex justify-center items-center gap-4 h-20 mb-4 opacity-0">
+                    <div class="coin" id="coin1"></div>
+                    <div class="coin" id="coin2"></div>
+                    <div class="coin" id="coin3"></div>
+                </div>
+                <p id="casting-status" class="text-lg text-slate-300 mb-4 h-6">Press the button to begin casting.</p>
+                <div id="lines-display" class="flex flex-col-reverse justify-end min-h-[240px]">
+                    <!-- Lines will be dynamically inserted here -->
+                </div>
+            </div>
+
+            <button id="casting-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-400 focus:ring-opacity-50">
+                Begin Casting
+            </button>
+
+            <!-- Results Container -->
+            <div id="results-container" class="hidden-state transition-all duration-1000">
+                <!-- Primary and Relating Hexagram cards will be inserted here -->
+            </div>
+        </main>
+
+        <footer class="mt-12 text-slate-500 text-sm">
+            <p>&copy; 2024 Your I Ching Companion. For reflection and entertainment purposes.</p>
+        </footer>
+    </div>
+
+    <script>
+        // --- Data for the 64 Hexagrams of the I Ching ---
+        // Includes binary representation and Chinese text.
+        const iChingData = [
+            { number: 1, name: "The Creative", chinese_name: "乾", symbol: "䷀", binary: "111111", description: "Represents pure, raw, creative energy...", judgment: "The Creative works sublime success...", image: "Heaven's movement is powerful...", chinese_judgment: "元，亨，利，貞。", chinese_image: "天行健，君子以自強不息。" },
+            { number: 2, name: "The Receptive", chinese_name: "坤", symbol: "䷁", binary: "000000", description: "Symbolizes the feminine, yielding, and nurturing principle...", judgment: "The Receptive brings about sublime success...", image: "The earth's condition is receptive devotion...", chinese_judgment: "元，亨，利牝馬之貞。君子有攸往，先迷後得主，利。", chinese_image: "地勢坤，君子以厚德載物。" },
+            { number: 3, name: "Difficulty at the Beginning", chinese_name: "屯", symbol: "䷂", binary: "100010", description: "Indicates initial obstacles and chaos...", judgment: "Difficulty at the Beginning works sublime success...", image: "Clouds and thunder...", chinese_judgment: "元，亨，利，貞，勿用，有攸往，利建侯。", chinese_image: "雲雷，屯；君子以經綸。" },
+            { number: 4, name: "Youthful Folly", chinese_name: "蒙", symbol: "䷃", binary: "010001", description: "Represents inexperience and the need for education...", judgment: "Youthful Folly has success...", image: "A spring wells up at the foot of the mountain...", chinese_judgment: "亨。匪我求童蒙，童蒙求我。初筮告，再三瀆，瀆則不告。利貞。", chinese_image: "山下出泉，蒙；君子以果行育德。" },
+            { number: 5, name: "Waiting", chinese_name: "需", symbol: "䷄", binary: "111010", description: "Advises patience and waiting for the right moment...", judgment: "Waiting. If you are sincere...", image: "Clouds rise up to heaven...", chinese_judgment: "有孚，光亨，貞吉。利涉大川。", chinese_image: "雲上於天，需；君子以飲食宴樂。" },
+            { number: 6, name: "Conflict", chinese_name: "訟", symbol: "䷅", binary: "010111", description: "Warns of conflict and contention...", judgment: "Conflict. You are sincere...", image: "Heaven and water go their opposite ways...", chinese_judgment: "有孚，窒惕，中吉。終凶。利見大人，不利涉大川。", chinese_image: "天與水違行，訟；君子以作事謀始。" },
+            { number: 7, name: "The Army", chinese_name: "師", symbol: "䷆", binary: "010000", description: "Relates to organized discipline and collective action...", judgment: "The Army. The army needs perseverance...", image: "In the middle of the earth is water...", chinese_judgment: "貞，丈人吉，無咎。", chinese_image: "地中有水，師；君子以容民畜眾。" },
+            { number: 8, name: "Holding Together", chinese_name: "比", symbol: "䷇", binary: "000010", description: "Signifies union, alliance, and holding together...", judgment: "Holding Together brings good fortune...", image: "On the earth is water...", chinese_judgment: "吉。原筮，元永貞，無咎。不寧方來，後夫凶。", chinese_image: "地上有水，比；先王以建萬國，親諸侯。" },
+            { number: 9, name: "The Taming Power of the Small", chinese_name: "小畜", symbol: "䷈", binary: "111011", description: "Suggests gentle restraint and influence...", judgment: "The Taming Power of the Small has success...", image: "The wind drives across heaven...", chinese_judgment: "亨。密雲不雨，自我西郊。", chinese_image: "風行天上，小畜；君子以懿文德。" },
+            { number: 10, name: "Treading", chinese_name: "履", symbol: "䷉", binary: "110111", description: "Concerns correct conduct and navigating dangerous situations...", judgment: "Treading upon the tail of the tiger...", image: "Heaven above, the lake below...", chinese_judgment: "履虎尾，不咥人，亨。", chinese_image: "上天下澤，履；君子以辨上下，定民志。" },
+            { number: 11, name: "Peace", chinese_name: "泰", symbol: "䷊", binary: "111000", description: "A time of harmony, balance, and prosperity...", judgment: "Peace. The small departs...", image: "Heaven and earth unite...", chinese_judgment: "小往大來，吉，亨。", chinese_image: "天地交，泰；后以財成天地之道，輔相天地之宜，以左右民。" },
+            { number: 12, name: "Standstill", chinese_name: "否", symbol: "䷋", binary: "000111", description: "The opposite of Peace, a time of decline...", judgment: "Standstill. Evil people do not further...", image: "Heaven and earth do not unite...", chinese_judgment: "之匪人，不利君子貞，大往小來。", chinese_image: "天地不交，否；君子以儉德辟難，不可榮以祿。" },
+            { number: 13, name: "Fellowship with Men", chinese_name: "同人", symbol: "䷌", binary: "101111", description: "Represents community and fellowship in the open...", judgment: "Fellowship with men in the open...", image: "Heaven together with fire...", chinese_judgment: "于野，亨。利涉大川，利君子貞。", chinese_image: "天與火，同人；君子以類族辨物。" },
+            { number: 14, name: "Possession in Great Measure", chinese_name: "大有", symbol: "䷍", binary: "111101", description: "Indicates a time of great abundance...", judgment: "Possession in Great Measure. Sublime success.", image: "Fire in heaven above...", chinese_judgment: "元亨。", chinese_image: "火在天上，大有；君子以遏惡揚善，順天休命。" },
+            { number: 15, name: "Modesty", chinese_name: "謙", symbol: "䷎", binary: "001000", description: "Highlights the virtue of modesty and humility...", judgment: "Modesty creates success...", image: "Within the earth, a mountain...", chinese_judgment: "亨，君子有終。", chinese_image: "地中有山，謙；君子以裒多益寡，稱物平施。" },
+            { number: 16, name: "Enthusiasm", chinese_name: "豫", symbol: "䷏", binary: "000100", description: "A time of enthusiasm and inspiring others...", judgment: "Enthusiasm. It furthers one to install helpers...", image: "Thunder comes resounding out of the earth...", chinese_judgment: "利建侯行師。", chinese_image: "雷出地奮，豫；先王以作樂崇德，殷薦之上帝，以配祖考。" },
+            { number: 17, name: "Following", chinese_name: "隨", symbol: "䷐", binary: "100110", description: "Concerns the idea of following a leader or a principle...", judgment: "Following has sublime success...", image: "Thunder in the middle of the lake...", chinese_judgment: "元亨利貞，無咎。", chinese_image: "澤中有雷，隨；君子以嚮晦入宴息。" },
+            { number: 18, name: "Work on What Has Been Spoiled", chinese_name: "蠱", symbol: "䷑", binary: "011001", description: "Indicates the need to repair or remedy a situation...", judgment: "Work on what has been spoiled has sublime success...", image: "The wind blows low on the mountain...", chinese_judgment: "元亨，利涉大川。先甲三日，後甲三日。", chinese_image: "山下有風，蠱；君子以振民育德。" },
+            { number: 19, name: "Approach", chinese_name: "臨", symbol: "䷒", binary: "110000", description: "Signifies a time of approach and growing influence...", judgment: "Approach has sublime success...", image: "The earth above the lake...", chinese_judgment: "元亨利貞。至于八月有凶。", chinese_image: "澤上有地，臨；君子以教思無窮，容保民無疆。" },
+            { number: 20, name: "Contemplation", chinese_name: "觀", symbol: "䷓", binary: "000011", description: "Represents looking up to a role model...", judgment: "Contemplation. The ablution has been made...", image: "The wind blows over the earth...", chinese_judgment: "盥而不薦，有孚顒若。", chinese_image: "風行地上，觀；先王以省方觀民設教。" },
+            { number: 21, name: "Biting Through", chinese_name: "噬嗑", symbol: "䷔", binary: "100101", description: "Indicates the need for decisive action...", judgment: "Biting Through has success...", image: "Thunder and lightning...", chinese_judgment: "亨。利用獄。", chinese_image: "雷電，噬嗑；先王以明罰敕法。" },
+            { number: 22, name: "Grace", chinese_name: "賁", symbol: "䷕", binary: "101001", description: "Deals with beauty, form, and ornamentation...", judgment: "Grace has success...", image: "Fire at the foot of the mountain...", chinese_judgment: "亨。小利有攸往。", chinese_image: "山下有火，賁；君子以明庶政，無敢折獄。" },
+            { number: 23, name: "Splitting Apart", chinese_name: "剝", symbol: "䷖", binary: "000001", description: "A time of disintegration and decay...", judgment: "Splitting Apart. It does not further...", image: "The mountain rests on the earth...", chinese_judgment: "不利有攸往。", chinese_image: "山附於地，剝；上以厚下安宅。" },
+            { number: 24, name: "Return", chinese_name: "復", symbol: "䷗", binary: "100000", description: "Signifies a turning point...", judgment: "Return. Success...", image: "Thunder within the earth...", chinese_judgment: "亨。出入無疾，朋來無咎。反復其道，七日來復，利有攸往。", chinese_image: "雷在地中，復；先王以至日閉關，商旅不行，后不省方。" },
+            { number: 25, name: "Innocence", chinese_name: "無妄", symbol: "䷘", binary: "100111", description: "Represents acting in accordance with the natural flow...", judgment: "Innocence. Sublime success...", image: "Under heaven thunder rolls...", chinese_judgment: "元亨利貞。其匪正有眚，不利有攸往。", chinese_image: "天下雷行，物與無妄；先王以茂對時育萬物。" },
+            { number: 26, name: "The Taming Power of the Great", chinese_name: "大畜", symbol: "䷙", binary: "111001", description: "Suggests accumulating great power and potential...", judgment: "The Taming Power of the Great. Perseverance furthers...", image: "Heaven within the mountain...", chinese_judgment: "利貞，不家食吉，利涉大川。", chinese_image: "天在山中，大畜；君子以多識前言往行，以畜其德。" },
+            { number: 27, name: "Corners of the Mouth", chinese_name: "頤", symbol: "䷚", binary: "100001", description: "Concerns nourishment, both physical and spiritual...", judgment: "The Corners of the Mouth. Perseverance brings good fortune...", image: "At the foot of the mountain, thunder...", chinese_judgment: "貞吉。觀頤，自求口實。", chinese_image: "山下有雷，頤；君子以慎言語，節飲食。" },
+            { number: 28, name: "Preponderance of the Great", chinese_name: "大過", symbol: "䷛", binary: "011110", description: "An extraordinary situation where the structure is overburdened...", judgment: "Preponderance of the Great. The ridgepole sags...", image: "The lake rises above the trees...", chinese_judgment: "棟橈，利有攸往，亨。", chinese_image: "澤滅木，大過；君子以獨立不懼，遯世無悶。" },
+            { number: 29, name: "The Abysmal", chinese_name: "坎", symbol: "䷜", binary: "010010", description: "Represents danger, like being in a deep gorge...", judgment: "The Abysmal, repeated. If you are sincere...", image: "Water flows on uninterruptedly...", chinese_judgment: "有孚，維心亨，行有尚。", chinese_image: "水洊至，習坎；君子以常德行，習教事。" },
+            { number: 30, name: "The Clinging, Fire", chinese_name: "離", symbol: "䷝", binary: "101101", description: "Symbolizes fire, which clings to what it burns...", judgment: "The Clinging. Perseverance furthers...", image: "That which is bright rises twice...", chinese_judgment: "利貞，亨。畜牝牛，吉。", chinese_image: "明兩作，離；大人以繼明照于四方。" },
+            { number: 31, name: "Influence", chinese_name: "咸", symbol: "䷞", binary: "001110", description: "Represents mutual attraction and influence...", judgment: "Influence. Success...", image: "A lake on the mountain...", chinese_judgment: "亨，利貞，取女吉。", chinese_image: "山上有澤，咸；君子以虛受人。" },
+            { number: 32, name: "Duration", chinese_name: "恒", symbol: "䷟", binary: "011100", description: "Symbolizes endurance and constancy...", judgment: "Duration. Success. No blame...", image: "Thunder and wind...", chinese_judgment: "亨，無咎，利貞，利有攸往。", chinese_image: "雷風，恒；君子以立不易方。" },
+            { number: 33, name: "Retreat", chinese_name: "遯", symbol: "䷠", binary: "001111", description: "Advises a timely and orderly retreat...", judgment: "Retreat. Success...", image: "Mountain under heaven...", chinese_judgment: "亨，小利貞。", chinese_image: "天下有山，遯；君子以遠小人，不惡而嚴。" },
+            { number: 34, name: "The Power of the Great", chinese_name: "大壯", symbol: "䷡", binary: "111100", description: "Represents great power and strength...", judgment: "The Power of the Great. Perseverance furthers.", image: "Thunder in heaven above...", chinese_judgment: "利貞。", chinese_image: "雷在天上，大壯；君子以非禮弗履。" },
+            { number: 35, name: "Progress", chinese_name: "晉", symbol: "䷢", binary: "000101", description: "A time of rapid, easy progress...", judgment: "Progress. The powerful prince is honored...", image: "The sun rises over the earth...", chinese_judgment: "康侯用錫馬蕃庶，晝日三接。", chinese_image: "明出地上，晉；君子以自昭明德。" },
+            { number: 36, name: "Darkening of the Light", chinese_name: "明夷", symbol: "䷣", binary: "101000", description: "Indicates a time when a dark, evil force is in power...", judgment: "Darkening of the Light. In adversity...", image: "The light has sunk into the earth...", chinese_judgment: "利艱貞。", chinese_image: "明入地中，明夷；君子以蒞眾，用晦而明。" },
+            { number: 37, name: "The Family", chinese_name: "家人", symbol: "䷤", binary: "101011", description: "Deals with the structure and relationships within a family...", judgment: "The Family. The perseverance of the woman furthers.", image: "Wind comes forth from fire...", chinese_judgment: "利女貞。", chinese_image: "風自火出，家人；君子以言有物而行有恒。" },
+            { number: 38, name: "Opposition", chinese_name: "睽", symbol: "䷥", binary: "110101", description: "Represents opposition and misunderstanding...", judgment: "Opposition. In small matters, good fortune.", image: "Above, fire; below, the lake...", chinese_judgment: "小事吉。", chinese_image: "上火下澤，睽；君子以同而異。" },
+            { number: 39, name: "Obstruction", chinese_name: "蹇", symbol: "䷦", binary: "001010", description: "Indicates facing an obstacle or danger...", judgment: "Obstruction. The southwest furthers...", image: "Water on the mountain...", chinese_judgment: "利西南，不利東北；利見大人，貞吉。", chinese_image: "山上有水，蹇；君子以反身修德。" },
+            { number: 40, name: "Deliverance", chinese_name: "解", symbol: "䷧", binary: "010100", description: "A time of relief from tension and difficulties...", judgment: "Deliverance. The southwest furthers...", image: "Thunder and rain set in...", chinese_judgment: "利西南，無所往，其來復吉。有攸往，夙吉。", chinese_image: "雷雨作，解；君子以赦過宥罪。" },
+            { number: 41, name: "Decrease", chinese_name: "損", symbol: "䷨", binary: "110001", description: "Suggests that a temporary decrease or sacrifice...", judgment: "Decrease combined with sincerity...", image: "At the foot of the mountain, the lake...", chinese_judgment: "有孚，元吉，無咎，可貞，利有攸往。曷之用，二簋可用享。", chinese_image: "山下有澤，損；君子以懲忿窒欲。" },
+            { number: 42, name: "Increase", chinese_name: "益", symbol: "䷩", binary: "100011", description: "A time of increase and growth...", judgment: "Increase. It furthers one to undertake something...", image: "Wind and thunder...", chinese_judgment: "利有攸往，利涉大川。", chinese_image: "風雷，益；君子以見善則遷，有過則改。" },
+            { number: 43, name: "Break-through", chinese_name: "夬", symbol: "䷪", binary: "111110", description: "Represents a decisive break-through...", judgment: "Break-through. One must resolutely make the matter known...", image: "The lake has risen up to heaven...", chinese_judgment: "揚于王庭，孚號，有厲，告自邑，不利即戎，利有攸往。", chinese_image: "澤上於天，夬；君子以施祿及下，居德則忌。" },
+            { number: 44, name: "Coming to Meet", chinese_name: "姤", symbol: "䷫", binary: "011111", description: "Warns of a powerful inferior element unexpectedly appearing...", judgment: "Coming to Meet. The maiden is powerful...", image: "Under heaven, wind...", chinese_judgment: "女壯，勿用取女。", chinese_image: "天下有風，姤；后以施命誥四方。" },
+            { number: 45, name: "Gathering Together", chinese_name: "萃", symbol: "䷬", binary: "000110", description: "A time of gathering together and forming a community...", judgment: "Gathering Together. Success...", image: "Over the earth, the lake...", chinese_judgment: "亨。王假有廟，利見大人，亨，利貞。用大牲吉，利有攸往。", chinese_image: "澤上於地，萃；君子以除戎器，戒不虞。" },
+            { number: 46, name: "Pushing Upward", chinese_name: "升", symbol: "䷭", binary: "011000", description: "Represents a steady, determined upward push...", judgment: "Pushing Upward has sublime success...", image: "Within the earth, wood grows...", chinese_judgment: "元亨，用見大人，勿恤，南征吉。", chinese_image: "地中生木，升；君子以順德，積小以高大。" },
+            { number: 47, name: "Oppression (Exhaustion)", chinese_name: "困", symbol: "䷮", binary: "010110", description: "A time of adversity and exhaustion...", judgment: "Oppression. Success. Perseverance...", image: "There is no water in the lake...", chinese_judgment: "亨，貞，大人吉，無咎，有言不信。", chinese_image: "澤無水，困；君子以致命遂志。" },
+            { number: 48, name: "The Well", chinese_name: "井", symbol: "䷯", binary: "011010", description: "Symbolizes the well, a source of nourishment...", judgment: "The Well. The town may be changed...", image: "Water over wood...", chinese_judgment: "改邑不改井，無喪無得，往來井井。汔至，亦未繘井，羸其瓶，凶。", chinese_image: "木上有水，井；君子以勞民勸相。" },
+            { number: 49, name: "Revolution (Molting)", chinese_name: "革", symbol: "䷰", binary: "101110", description: "Indicates a time of radical change or revolution...", judgment: "Revolution. On your own day you are believed...", image: "Fire in the lake...", chinese_judgment: "巳日乃孚，元亨利貞，悔亡。", chinese_image: "澤中有火，革；君子以治歷明時。" },
+            { number: 50, name: "The Caldron", chinese_name: "鼎", symbol: "䷱", binary: "011101", description: "The caldron is a symbol of nourishment, culture, and transformation...", judgment: "The Caldron. Supreme good fortune. Success.", image: "Fire over wood...", chinese_judgment: "元吉，亨。", chinese_image: "木上有火，鼎；君子以正位凝命。" },
+            { number: 51, name: "The Arousing (Shock, Thunder)", chinese_name: "震", symbol: "䷲", binary: "100100", description: "Represents a sudden shock or disturbance...", judgment: "Shock brings success...", image: "Thunder repeated...", chinese_judgment: "亨。震來虩虩，笑言啞啞。震驚百里，不喪匕鬯。", chinese_image: "洊雷，震；君子以恐懼修省。" },
+            { number: 52, name: "Keeping Still, Mountain", chinese_name: "艮", symbol: "䷳", binary: "001001", description: "Symbolizes stillness and rest...", judgment: "Keeping Still. Keeping his back still...", image: "Mountains standing close together...", chinese_judgment: "其背，不獲其身，行其庭，不見其人，無咎。", chinese_image: "兼山，艮；君子以思不出其位。" },
+            { number: 53, name: "Development (Gradual Progress)", chinese_name: "漸", symbol: "䷴", binary: "001011", description: "Represents slow, gradual progress...", judgment: "Development. The maiden is given in marriage...", image: "On the mountain, a tree...", chinese_judgment: "女歸吉，利貞。", chinese_image: "山上有木，漸；君子以居賢德善俗。" },
+            { number: 54, name: "The Marrying Maiden", chinese_name: "歸妹", symbol: "䷵", binary: "110100", description: "Warns against improper or impulsive unions...", judgment: "The Marrying Maiden. Undertakings bring misfortune...", image: "Thunder over the lake...", chinese_judgment: "征凶，無攸利。", chinese_image: "澤上有雷，歸妹；君子以永終知敝。" },
+            { number: 55, name: "Abundance (Fullness)", chinese_name: "豐", symbol: "䷶", binary: "101100", description: "A time of great abundance and culmination...", judgment: "Abundance has success...", image: "Both thunder and lightning come...", chinese_judgment: "亨，王假之，勿憂，宜日中。", chinese_image: "雷電皆至，豐；君子以折獄致刑。" },
+            { number: 56, name: "The Wanderer", chinese_name: "旅", symbol: "䷷", binary: "001101", description: "Represents being a stranger in a foreign land...", judgment: "The Wanderer. Success through smallness...", image: "Fire on the mountain...", chinese_judgment: "小亨，旅貞吉。", chinese_image: "山上有火，旅；君子以明慎用刑，而不留獄。" },
+            { number: 57, name: "The Gentle (The Penetrating, Wind)", chinese_name: "巽", symbol: "䷸", binary: "011011", description: "Symbolizes the gentle but pervasive influence of the wind...", judgment: "The Gentle. Success through what is small...", image: "Winds following one upon the other...", chinese_judgment: "小亨，利有攸往，利見大人。", chinese_image: "隨風，巽；君子以申命行事。" },
+            { number: 58, name: "The Joyous, Lake", chinese_name: "兌", symbol: "䷹", binary: "110110", description: "Represents joy and communication...", judgment: "The Joyous. Success...", image: "Lakes resting one on the other...", chinese_judgment: "亨，利貞。", chinese_image: "麗澤，兌；君子以朋友講習。" },
+            { number: 59, name: "Dispersion (Dissolution)", chinese_name: "渙", symbol: "䷺", binary: "010011", description: "Indicates a time when selfishness and rigidity are dissolving...", judgment: "Dispersion. Success...", image: "The wind drives over the water...", chinese_judgment: "亨。王假有廟，利涉大川，利貞。", chinese_image: "風行水上，渙；先王以享于帝立廟。" },
+            { number: 60, name: "Limitation", chinese_name: "節", symbol: "䷻", binary: "110010", description: "Represents the importance of limits and regulations...", judgment: "Limitation. Success...", image: "Water over lake...", chinese_judgment: "亨。苦節不可貞。", chinese_image: "澤上有水，節；君子以制數度，議德行。" },
+            { number: 61, name: "Inner Truth", chinese_name: "中孚", symbol: "䷼", binary: "110011", description: "Represents the power of inner sincerity and truth...", judgment: "Inner Truth. Pigs and fishes...", image: "Wind over lake...", chinese_judgment: "豚魚吉，利涉大川，利貞。", chinese_image: "澤上有風，中孚；君子以議獄緩死。" },
+            { number: 62, name: "Preponderance of the Small", chinese_name: "小過", symbol: "䷽", binary: "001100", description: "In extraordinary times, small, careful actions are appropriate...", judgment: "Preponderance of the Small. Success...", image: "Thunder on the mountain...", chinese_judgment: "亨，利貞，可小事，不可大事。飛鳥遺之音，不宜上，宜下，大吉。", chinese_image: "山上有雷，小過；君子以行過乎恭，喪過乎哀，用過乎儉。" },
+            { number: 63, name: "After Completion", chinese_name: "既濟", symbol: "䷾", binary: "010101", description: "Represents a moment of perfect order and completion...", judgment: "After Completion. Success in small matters...", image: "Water over fire...", chinese_judgment: "亨，小利貞，初吉終亂。", chinese_image: "水在火上，既濟；君子以思患而豫防之。" },
+            { number: 64, name: "Before Completion", chinese_name: "未濟", symbol: "䷿", binary: "101010", description: "Represents the moment just before success...", judgment: "Before Completion. Success...", image: "Fire over water...", chinese_judgment: "亨，小狐汔濟，濡其尾，無攸利。", chinese_image: "火在水上，未濟；君子以慎辨物居方。" }
+        ];
+
+        // --- DOM Elements ---
+        const castingButton = document.getElementById('casting-button');
+        const castingArea = document.getElementById('casting-area');
+        const castingStatus = document.getElementById('casting-status');
+        const linesDisplay = document.getElementById('lines-display');
+        const resultsContainer = document.getElementById('results-container');
+        const coinContainer = document.getElementById('coin-container');
+        const coins = [document.getElementById('coin1'), document.getElementById('coin2'), document.getElementById('coin3')];
+
+        // --- State ---
+        let lines = [];
+        let tossCount = 0;
+        let isCasting = false;
+
+        // --- Event Listener ---
+        castingButton.addEventListener('click', handleCasting);
+
+        /**
+         * Main handler for the casting button.
+         */
+        async function handleCasting() {
+            if (castingButton.disabled) return;
+
+            if (!isCasting) {
+                await startNewCasting();
+            } else {
+                await castNextLine();
+            }
+        }
+
+        /**
+         * Resets the state and UI for a new casting.
+         */
+        async function startNewCasting() {
+            isCasting = true;
+            lines = [];
+            tossCount = 0;
+            
+            linesDisplay.innerHTML = '';
+            resultsContainer.innerHTML = '';
+            resultsContainer.classList.add('hidden-state');
+            castingArea.classList.remove('hidden-state');
+            
+            await castNextLine();
+        }
+
+        /**
+         * Simulates a coin toss for one line and updates the UI.
+         */
+        async function castNextLine() {
+            if (tossCount >= 6) return;
+
+            tossCount++;
+            castingButton.textContent = `Casting Line ${tossCount} of 6...`;
+            castingButton.disabled = true;
+            castingStatus.textContent = `Tossing coins for line ${tossCount}...`;
+
+            const line = await animateToss();
+            lines.push(line);
+            
+            const { lineSymbol, indicatorSymbol, indicatorClass } = getLineVisuals(line.value);
+            const lineEl = document.createElement('div');
+            lineEl.className = 'cast-line line-animation';
+            lineEl.innerHTML = `
+                <span class="line-symbol">${lineSymbol}</span>
+                <span class="line-indicator ${indicatorClass}">${indicatorSymbol}</span>
+            `;
+            linesDisplay.appendChild(lineEl);
+            
+            if (tossCount < 6) {
+                castingStatus.textContent = `Line ${tossCount} cast. Toss for the next line.`;
+                castingButton.textContent = `Cast Line ${tossCount + 1} of 6`;
+                castingButton.disabled = false;
+            } else {
+                castingStatus.textContent = "All six lines have been cast.";
+                castingButton.textContent = "Show Result";
+                castingButton.disabled = false;
+                castingButton.onclick = showResults;
+            }
+        }
+
+        /**
+         * Animates the coin toss.
+         */
+        function animateToss() {
+            return new Promise(resolve => {
+                coinContainer.style.opacity = '1';
+                coins.forEach(c => {
+                    c.className = 'coin';
+                    c.textContent = '';
+                });
+
+                coins.forEach(c => c.classList.add('tossing'));
+                
+                setTimeout(() => {
+                    const result = tossThreeCoins();
+                    let heads = 0;
+                    if (result.value === 9) heads = 3;
+                    if (result.value === 8) heads = 2;
+                    if (result.value === 7) heads = 1;
+
+                    coins.forEach((c, index) => {
+                        c.classList.remove('tossing');
+                        if (index < heads) {
+                            c.classList.add('heads');
+                            c.textContent = 'H';
+                        } else {
+                            c.classList.add('tails');
+                            c.textContent = 'T';
+                        }
+                    });
+
+                    setTimeout(() => {
+                        coinContainer.style.opacity = '0';
+                        resolve(result);
+                    }, 1200);
+
+                }, 1000);
+            });
+        }
+
+        /**
+         * Simulates tossing three coins.
+         */
+        function tossThreeCoins() {
+            let heads = 0;
+            for (let i = 0; i < 3; i++) {
+                if (Math.random() < 0.5) {
+                    heads++;
+                }
+            }
+            
+            if (heads === 3) return { value: 9, isChanging: true };
+            if (heads === 2) return { value: 8, isChanging: false };
+            if (heads === 1) return { value: 7, isChanging: false };
+            if (heads === 0) return { value: 6, isChanging: true };
+        }
+        
+        /**
+         * Gets the visual representation for a line value.
+         */
+        function getLineVisuals(value) {
+            switch (value) {
+                case 9: return { lineSymbol: '&#8212;&#8212;&#8212;', indicatorSymbol: 'X', indicatorClass: 'changing-yang' };
+                case 8: return { lineSymbol: '&#8212; &nbsp; &#8212;', indicatorSymbol: '', indicatorClass: '' };
+                case 7: return { lineSymbol: '&#8212;&#8212;&#8212;', indicatorSymbol: '', indicatorClass: '' };
+                case 6: return { lineSymbol: '&#8212; &nbsp; &#8212;', indicatorSymbol: 'O', indicatorClass: 'changing-yin' };
+                default: return { lineSymbol: '', indicatorSymbol: '', indicatorClass: '' };
+            }
+        }
+
+        /**
+         * Finalizes and displays the results.
+         */
+        function showResults() {
+            const primaryBinary = lines.map(line => (line.value === 7 || line.value === 9) ? '1' : '0').join('');
+            const primaryHexagram = findHexagramByBinary(primaryBinary);
+
+            const hasChangingLines = lines.some(line => line.isChanging);
+            let relatingHexagram = null;
+            if (hasChangingLines) {
+                const relatingBinary = lines.map(line => {
+                    if (!line.isChanging) return (line.value === 7 || line.value === 9) ? '1' : '0';
+                    return (line.value === 9) ? '0' : '1';
+                }).join('');
+                relatingHexagram = findHexagramByBinary(relatingBinary);
+            }
+
+            let resultsHTML = createHexagramCard(primaryHexagram, 'Primary Hexagram');
+            if (relatingHexagram) {
+                resultsHTML += createHexagramCard(relatingHexagram, 'Relating Hexagram');
+            }
+            resultsContainer.innerHTML = resultsHTML;
+            
+            resultsContainer.classList.remove('hidden-state');
+            castingArea.classList.add('hidden-state');
+            castingButton.textContent = 'Start New Casting';
+            castingButton.onclick = handleCasting;
+            isCasting = false;
+
+            setTimeout(() => {
+                resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+
+        /**
+         * Finds a hexagram by its binary string.
+         */
+        function findHexagramByBinary(binaryString) {
+            return iChingData.find(h => h.binary === binaryString) || null;
+        }
+        
+        /**
+         * Generates the HTML for a single hexagram result card.
+         */
+        function createHexagramCard(hexagram, title) {
+            if (!hexagram) return '';
+            
+            return `
+                <div class="mt-10 bg-slate-800/50 backdrop-blur-sm p-6 md:p-8 rounded-2xl shadow-2xl border border-slate-700 text-left">
+                    <h3 class="text-2xl font-bold text-blue-300 mb-4">${title}</h3>
+                    <div class="flex flex-col md:flex-row items-center gap-6 md:gap-8">
+                        <div class="hexagram-symbol">${hexagram.symbol}</div>
+                        <div>
+                            <h2 class="text-3xl font-bold text-white">${hexagram.number}. ${hexagram.name}</h2>
+                            <p class="text-2xl text-blue-300 chinese-text">${hexagram.chinese_name}</p>
+                        </div>
+                    </div>
+                    <div class="mt-6 border-t border-slate-700 pt-6 space-y-4">
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">The Judgment</h4>
+                            <p class="italic text-slate-400">${hexagram.judgment}</p>
+                            <p class="italic text-slate-400/70 mt-2 chinese-text text-lg">${hexagram.chinese_judgment}</p>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold text-white mb-2">The Image</h4>
+                            <p class="italic text-slate-400">${hexagram.image}</p>
+                            <p class="italic text-slate-400/70 mt-2 chinese-text text-lg">${hexagram.chinese_image}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+    </script>
+
+</body>
+</html>
+
+
