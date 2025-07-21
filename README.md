@@ -4,6 +4,8 @@ User Manual: The I Ching Divination Oracle
 
 [https://hhjpzhao.github.io/I-Ching-Divination-Oracle/] (https://hhjpzhao.github.io/I-Ching-Divination-Oracle/)
 
+Or simply download the program's (https://hhjpzhao.github.io/I-Ching-Divination-Oracle/) file and open it in any modern web browser.
+
 1. Welcome to the Oracle
 Welcome! This guide will walk you through how to use the I Ching Divination Oracle application. The I Ching, or Book of Changes, is an ancient oracle with roots in Chinese philosophy. It does not predict the future, but rather offers wisdom and insight into your current situation, helping you to reflect and make decisions with greater clarity.
 
